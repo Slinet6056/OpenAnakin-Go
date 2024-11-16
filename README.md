@@ -51,3 +51,44 @@ models:
     ```sh
     ./openanakin-go
     ```
+
+## Docker 运行
+
+### 从 GitHub Container Registry 运行
+
+1. 拉取镜像：
+
+    ```sh
+    docker pull ghcr.io/slinet6056/openanakin-go:master
+    ```
+
+2. 准备配置文件：
+   创建 `config.yaml` 文件并配置模型映射
+
+3. 运行容器：
+
+    ```sh
+    docker run -d \
+      -p 8080:8080 \
+      -v $(pwd)/config.yaml:/app/config.yaml \
+      ghcr.io/slinet6056/openanakin-go:master
+    ```
+
+### 本地构建运行
+
+1. 构建镜像：
+
+    ```sh
+    docker build -t openanakin-go .
+    ```
+
+2. 运行容器：
+
+    ```sh
+    docker run -d \
+      -p 8080:8080 \
+      -v $(pwd)/config.yaml:/app/config.yaml \
+      openanakin-go
+    ```
+
+服务将在 http://localhost:8080 启动。请确保 config.yaml 文件已正确配置。
