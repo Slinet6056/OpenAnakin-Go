@@ -104,16 +104,16 @@ func (h *OpenAIHandler) handleStreamRequest(c *gin.Context, apiKey string, req *
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-
-	err := h.anakinClient.SendStreamMessage(apiKey, req.Model, req.Messages, &streamCallback{
+	
+	callback := &streamCallback{
 		context: c,
 		model:   req.Model,
 		done:    &wg,
-	})
+		once:    new(sync.Once),
+	}
 
-	if err != nil {
-		wg.Done()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("处理流式请求失败: %v", err)})
+	if err := h.anakinClient.SendStreamMessage(apiKey, req.Model, req.Messages, callback); err != nil {
+		callback.OnError(fmt.Errorf("处理流式请求失败: %v", err))
 		return
 	}
 
@@ -125,6 +125,7 @@ type streamCallback struct {
 	context *gin.Context
 	model   string
 	done    *sync.WaitGroup
+	once    *sync.Once
 }
 
 func (cb *streamCallback) OnEvent(event, data string) {
@@ -138,13 +139,13 @@ func (cb *streamCallback) OnEvent(event, data string) {
 func (cb *streamCallback) OnComplete() {
 	cb.context.Writer.Write([]byte("data: [DONE]\n\n"))
 	cb.context.Writer.Flush()
-	cb.done.Done()
+	cb.once.Do(cb.done.Done)
 }
 
 func (cb *streamCallback) OnError(err error) {
 	cb.context.Writer.Write([]byte(fmt.Sprintf("error: %v\n\n", err)))
 	cb.context.Writer.Flush()
-	cb.done.Done()
+	cb.once.Do(cb.done.Done)
 }
 
 // convertToOpenAIFormat 将Anakin响应转换为OpenAI格式
