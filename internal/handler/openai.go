@@ -98,13 +98,53 @@ func (h *OpenAIHandler) handleNonStreamRequest(c *gin.Context, apiKey string, re
 
 // handleStreamRequest 处理流式请求
 func (h *OpenAIHandler) handleStreamRequest(c *gin.Context, apiKey string, req *OpenAIRequest) {
+	// 如果是o1-preview模型，使用非流式请求但以流式方式返回
+	if req.Model == "o1-preview" || req.Model == "o1-mini" {
+		c.Header("Content-Type", "text/event-stream")
+		c.Header("Cache-Control", "no-cache")
+		c.Header("Connection", "keep-alive")
+
+		response, err := h.anakinClient.SendMessage(apiKey, req.Model, req.Messages)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("发送消息失败: %v", err)})
+			return
+		}
+
+		// 构造流式响应
+		openAIResp := OpenAIResponse{
+			ID:      "chatcmpl-" + uuid.New().String(),
+			Object:  "chat.completion.chunk",
+			Created: time.Now().Unix(),
+			Model:   req.Model,
+			Choices: []Choice{
+				{
+					Index: 0,
+					Delta: &Delta{
+						Content: response,
+					},
+				},
+			},
+		}
+
+		jsonResp, err := json.Marshal(openAIResp)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "响应序列化失败"})
+			return
+		}
+
+		c.Writer.Write([]byte("data: " + string(jsonResp) + "\n\n"))
+		c.Writer.Write([]byte("data: [DONE]\n\n"))
+		c.Writer.Flush()
+		return
+	}
+
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	
+
 	callback := &streamCallback{
 		context: c,
 		model:   req.Model,

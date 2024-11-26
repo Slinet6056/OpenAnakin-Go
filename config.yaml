@@ -1,4 +1,6 @@
 models:
   "gpt-4o-mini": 31800
   "gpt-4o": 32442
+  "claude-3-5-sonnet": 34483
+  "o1-preview": 34484
   
